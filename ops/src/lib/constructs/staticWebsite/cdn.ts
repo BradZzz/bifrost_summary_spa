@@ -4,6 +4,10 @@ import { Token } from "cdktf"
 import {
   AcmCertificate,
   CloudfrontDistribution,
+  CloudfrontOriginAccessIdentity,
+  DataAwsIamPolicyDocument,
+  S3BucketPolicy,
+  S3BucketPublicAccessBlock,
   S3Bucket,
 } from "../../../imports/providers/aws"
 
@@ -47,6 +51,45 @@ class CdnConstruct extends Construct {
 
     const websiteOriginID = props.resourceNamesPrefix
 
+    const cloudfrontOriginAccessIdentity = new CloudfrontOriginAccessIdentity(this, 'cloudfront_OAI',{
+        comment: "bifrost_summary"
+    })
+
+    const buildRolePolicyDocument = new DataAwsIamPolicyDocument(this, 'cloudfront_OAI_role_policy_document', {
+      version: "2012-10-17",
+      statement: [{
+        effect: "Allow",
+        actions: [
+          "s3:GetObject",
+          "s3:GetObjectVersion",
+          "s3:ListBucket",
+          "s3:GetBucketAcl",
+          "s3:GetBucketLocation",
+        ],
+        resources: [
+          Token.asString(props.websiteS3Bucket.arn),
+          `${Token.asString(props.websiteS3Bucket.arn)}/*`,
+        ],
+        principals: [{
+          type: "AWS",
+          identifiers: [cloudfrontOriginAccessIdentity.iamArn]
+        }]
+      }]
+    })
+
+    new S3BucketPolicy(this,'cloudfront_s3_bucket_policy',{
+      bucket: Token.asString(props.websiteS3Bucket.id),
+      policy: buildRolePolicyDocument.json
+    })
+
+    new S3BucketPublicAccessBlock(this,'cloudfront_s3_bucket_public_access_block',{
+      bucket: Token.asString(props.websiteS3Bucket.id),
+      blockPublicAcls: true,
+      blockPublicPolicy: true,
+      ignorePublicAcls: true,
+      restrictPublicBuckets: false
+    })
+
     const cloudfrontDistribution = new CloudfrontDistribution(this, "cloudfront_distribution", {
       enabled: true,
       defaultRootObject: "index.html",
@@ -54,6 +97,9 @@ class CdnConstruct extends Construct {
       origin: [{
         domainName: props.websiteS3Bucket.bucketRegionalDomainName,
         originId: websiteOriginID,
+        s3OriginConfig:[{
+            originAccessIdentity:cloudfrontOriginAccessIdentity.cloudfrontAccessIdentityPath
+        }]
       }],
       customErrorResponse: [{
         // If the routing is managed by a SPA framework
