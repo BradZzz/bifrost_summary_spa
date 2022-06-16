@@ -1,6 +1,8 @@
 # Getting Started with Create React App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# How this was created
+https://medium.com/scaffold/deploying-a-react-app-on-aws-s3-using-terraform-and-the-cdktf-eb7c91038879
+
 
 ## Available Scripts
 
